@@ -1,0 +1,17 @@
+                                        ;
+                                        ;
+KERN SEGMENT USE16                      ;
+                                        ;
+kernel_main PROC                        ;
+    MOV al, 'A'                         ;
+    MOV ah, 0EH                         ;
+    MOV bx, 0                           ;
+    int 10h                             ;
+@@loop:                                 ;
+    HLT                                 ;
+    JMP @@loop                          ;
+                                        ;
+kernel_main ENDP                        ;
+                                        ;
+KERN ENDS                               ;
+END                                     ;
