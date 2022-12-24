@@ -31,24 +31,15 @@ skip:                                   ;
     ; Set DS                            ;
     PUSH cs                             ;
     POP ds                              ;  DS sp
-    ;                                   ;
-    PUSH 0                              ;
-    PUSH 0                              ;
-    PUSH 0                              ;
-    PUSH 0                              ;
-    PUSH 0                              ;
-    PUSH 0                              ;
-    CALL encode_gdt_entry               ;
     ; store drive number                ;
     MOV BYTE PTR [var_drive_num], dl    ;
     ; get memory size                   ;
     INT 12H                             ; Report memory size
     MOV WORD PTR [var_mem_size], ax     ;
     ;                                   ;
+    CALL set_gdtr                       ;
     CALL write_banner                   ;
     CALL load_kernel                    ; loads the kernel to memory
-    ; load the GDT                      ;
-    LGDT var_gdt_start                  ;
     ; call loaded kernel                ;
     DB 0EAH                             ; FAR JUMP
     DW 0                                ; Byte 0
@@ -57,45 +48,21 @@ skip:                                   ;
 boot_start ENDP                         ;
                                         ;
 ;---------------------------------------;
-; encode_gdt_entry                      ;
+; set_gdtr                              ;
 ;---------------------------------------;
-; encode GDT entry for 32b mode         ;
+; set the GDTR to the most permissive   ;
+; option - everything can be RW         ;
 ;---------------------------------------;
-; ax = location - where to write to     ;
-; PS + 14 = Base uppsr 32               ;
-; PS + 12 = Base lower 32               ;
-; SP + 10 = Limit - upper 4             ;
-; SP + 8 = Limit - lower 16             ;
-; SP + 4 = Flags - lower half           ;
-; SP + 2 = access byte - lower half     ;
-;---------------------------------------;
-encode_gdt_entry PROC NEAR              ;
-    MOV bp, sp                          ;
-    ; set access byte                   ;
-    MOV bx, WORD PTR [bp + 2]           ;
-    MOV BYTE PTR [ax + 5], bl           ;
-    ; set limit - LSD                   ;
-    MOV bx, WORD PTR [bp + 8]           ;
-    MOV WORD PTR [ax], bx               ;
-    ; set limit - MSD and flags         ;
-    MOV bl, BYTE PTR [bp+10]            ;
-    AND bl, 00001111B                   ; remove excess-bits
-    MOV cl, BYTE PTR [bp + 4]           ;
-    AND cl, 11110000B                   ; remove excess-bits
-    AND bl, cl                          ; merge both 
-    MOV BYTE PTR [ax + 6], bl           ;  
-    ; set base - lower                  ;
-    MOV bx, WORD PTR [bp + 12]          ;
-    MOV WORD PTR [ax + 2], bx           ;
-    ; set base- high                    ;
-    MOV bx, WORD PTR [bp + 14]          ;
-    MOV BYTE PTR [ax + 4], bl           ;
-    MOV BYTE PTR [ax + 7], bh           ; the GDT is a bit cursed for compat reasons
-    RET 12                              ;
-encode_gdt_entry ENDP                   ;
+set_gdtr PROC                           ;
+    ; calculate the position of GDT     ;
+    MOV ax, ds                          ;
+    SHR ax, 4                           ; calculate linear address of GDT
+    ADD ax, OFFSET gdt                  ;
+    MOV WORD PTR [gdt], ax              ;
+    ; load the gdt into gdtr            ;
+    LGDT FWORD PTR [gdt]                ;
+set_gdtr ENDP                           ;
                                         ;
-;---------------------------------------;
-; load_kernel                           ;
 ;---------------------------------------;
 ; reads from the disc and               ;
 ; loads the kernel into 7E0H:0          ;
@@ -145,6 +112,9 @@ write_banner PROC                       ;
     RET                                 ;
 write_banner ENDP                       ;
                                         ;
+    INCLUDE gdt.s                       ; Definition of the GDT - takes up 8 * 2 + 6 Bytes
+                                        ;
+;---------------------------------------;
     msg DB "MaxOS - Booting", 10, 13, 0 ;
 ;---------------------------------------;
     ORG 510                             ; Flag must be at position 510
