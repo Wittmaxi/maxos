@@ -4,11 +4,12 @@ bootsector.BIN: bootsector/bootsector.s
 kernel.BIN: kernel/kernel.s
 	uasm -bin $^
 
-kernel.bin: bootsector.BIN kernel.BIN
-	cat $^ > $@
-	rm *.BIN
+bootdisc.bin: bootsector.BIN kernel.BIN
+	-mkdir kerneldir
+	mv kernel.BIN ./kerneldir/KERNEL.BIN
+	mkfatbin -b bootsector.BIN -d kerneldir -o bootdisc.bin
 
-run: kernel.bin
+run: bootdisc.bin
 	qemu-system-x86_64 -fda $<
 
 debug: kernel.bin

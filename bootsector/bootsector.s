@@ -8,7 +8,8 @@ LOADER SEGMENT USE16                    ;
 ; Variable index-table                  ;
 ;---------------------------------------;
     BOOT_DRIVE EQU relocate             ;
-    CURTOP EQU BOOT_DRIVE + 2           ;
+    CURTOP EQU BOOT_DRIVE + 1           ;
+    FATTOP EQU CURTOP + 2               ;
 ;---------------------------------------;
 ; skip BPB section                      ;
 ;---------------------------------------;
@@ -95,28 +96,56 @@ relocate ENDP                           ;
 ; DL - boot drive                       ;
 ;---------------------------------------;
 setup PROC NEAR                         ;
-    ;- we are here! small notif - TODO REMOVE        ;
-    MOV al, 'A'                         ;
+    ;- we are here! small notif - TODO REMOVE
+    MOV al, 'B'                         ;
     MOV ah, 0EH                         ;
     XOR bx, bx                          ;
     INT 10h                             ;
     ;- setup stack                      ;
     PUSH cs                             ;
     POP ss                              ; SS = CS
-    MOV sp, 0A00H                       ; SP = 2,5kb above code
+    MOV sp, 020H                        ; stack lives above the code
     ;- enable interrupts back           ;
     STI                                 ;
     ;- preserve Data                    ;
-    MOV [BOOT_DRIVE], dl                ;
-    MOV [CURTOP], cs                    ;
-    ;- Calculate FAT                    ;
+    MOV BYTE PTR [BOOT_DRIVE], dl       ; What's the boot drive? - important when we read sectors
+    MOV WORD PTR [CURTOP], cs           ; What's the highest address that won't overwrite kernel?
+    ;- FAT                              ;
+    ;-- calculate locations             ;
     MOV AX, [BPB_secPerFAT]             ;
-    DIX [BPB_bytPerSec]                 ; AX = size of FAT
+    DIV [BPB_bytPerSec]                 ; AX = size of FAT
     MOV cx, ax                          ; !! CX = size of FAT
     XOR ax, ax                          ;
-    ADD ax, PTR WORD [BPB_resSec]       ; AX = fat sector
-    MOV 
-    ;- 
+    ADD ax, [BPB_resSec]                ; !! AX = fat sector
+    PUSH ax                             ; Preserve FAT start
+    PUSH cx                             ;
+    ;-- read the FAT                    ;
+    ;--- where to?                      ;
+    MOV ax, cx                          ; AX = size of FAT
+    CALL calcStart                      ; ES:BX = where to put FAT
+                                        ; CX = amount of sectors to read
+    MOV WORD PTR [FATTOP], es           ; Preserve FAT-TOP
+    ;--- read from disc                 ;
+    CALL readSectors                    ;
+    ;--- display content of FAT         ;
+    PUSH es                             ;
+    POP ds                              ;
+    MOV si, 0                           ;
+    CALL display                        ;
+    ;- root                             ;
+    ;-- calculate locations             ;
+    POP cx                              ; CX = size of FAT in secs
+    POP ax                              ; AX = FAT start sector
+    XCHG ax, cx                         ;
+    MUL WORD PTR [BPB_numberFAT]        ;
+    ADD ax, cx                          ;
+    INC ax                              ; !! AX = sector on disk of ROOT
+    ;-- read from DISC                  ;
+    MOV cx, 1                           ; read one sector
+    
+    
+    
+    ;-                                  ;
 
     
     
@@ -125,6 +154,39 @@ setup PROC NEAR                         ;
     HLT                                 ;
     JMP @@h                             ;
 setup ENDP                              ;
+                                        ;
+;---------------------------------------;
+; calcStart                             ;
+;---------------------------------------;
+; Calculates the start of a new segment ;
+;---------------------------------------;
+; AX - required Size                    ;
+;---------------------------------------;
+; ES:BX = new area; ES:00               ;
+; CX = FAT sectors to read              ;
+;---------------------------------------;
+calcStart PROC                          ;
+    ;- preserve size                    ;
+    PUSH ax                             ;
+    ;- calculate required size to segments
+    MOV cl, 04h                         ; divide by 01h
+    SHR ax, cl                          ; AX = required segments, not bytes
+    INC ax                              ; Because our division was ceiled
+    ;- calculate new beginning          ;
+    MOV bx, [CURTOP]                    ; BX = current top
+    SUB bx, ax                          ; BX = new segment start
+    ;- save new top position            ;
+    MOV WORD PTR [CURTOP], bx           ;
+    ;- setup location pointer           ;
+    MOV es, bx                          ; !! ES = location
+    XOR bx, bx                          ; !! BX = 0
+    ;- calculate location size in SEGS  ; used for the readSectors calls
+    POP ax                              ;
+    DIV WORD PTR [BPB_bytPerSec]        ;
+    MOV cx, ax                          ; !! CX = size
+    ;-                                  ;
+    RET                                 ;
+calcStart ENDP                          ;
                                         ;
 ;---------------------------------------;
 ; readSectors                           ;
@@ -154,12 +216,12 @@ readSector PROC                         ;
 RETRY:                                  ;
     PUSH DX                             ;
     PUSH AX                             ;
-    ;- calculate CHS                    ; AX = LBA sector
+    ;- calculate CHS                    ; AX = LBA sector ; DX => Discarded
     ; temp = LBA / sec per track        ;
     ; Sector = (LBA % sec per track) + 1; -> CL
     ; Head = temp % number of heads     ; -> DH
     ; Cyl = temp / number of heads      ; -> CH
-    DIV WORD PTR CS:[BPB_secPerTrack]   ; AX = TEMP ; DX = SECTOR - 1
+    DIV WORD PTR CS:[BPB_headCount]     ; AX = TEMP ; DX = SECTOR - 1
     MOV cx, dx                          ;
     INC cx                              ; !! CX = CL = CHS sector
     XOR dx, dx                          ; DX = 0
@@ -168,8 +230,9 @@ RETRY:                                  ;
     MOV ch, al                          ; !! CH = cyl
     ;- Read the sector                  ;
     MOV dl, cs:[BOOT_DRIVE]             ; DL = drive number
-    MOV ax, 0201                        ; AL = 1 ; AH = 2
-    INT 13h                             ;
+    MOV ax, 0201H                       ; AL = 1 ; AH = 2
+    STC                                 ; Some bioses have a bug not setting IF and CF correctly
+    INT 13H                             ;
     ;- restore absolute sector          ;
     POP ax                              ;
     POP dx                              ;
@@ -216,7 +279,7 @@ reboot ENDP                             ;
 ;---------------------------------------;
 ; readDone                              ;
 ;---------------------------------------;
-; readSector will jump here after a read
+; readSector will jump here after a read;
 ; we will loop through the number of sectors if needed
 ;---------------------------------------;
 readDone PROC                           ;
@@ -231,37 +294,7 @@ readDone PROC                           ;
     ;- return to caller of readSector   ;
     RET                                 ;
 readDone ENDP                           ;
-;---------------------------------------;
-; reads from the disc and               ;
-; loads the kernel into 7E0H:0          ;
-;---------------------------------------;
-; DL - drive number                     ;
-;---------------------------------------;
-    ; set output location               ;
-    MOV ax, 07E0H                       ;
-    MOV es, ax                          ; ES = 7E0H
-    MOV bx, 0                           ; BX = 0
-    ; set drive read params             ;
-    MOV ah, 2                           ; AH =  2 - INT 13,2 - read sectors
-    MOV al, 10                          ; AL = 128 - read 10 sectors
-    MOV ch, 0                           ; track/cylinder number
-    MOV cl, 2                           ; sector number
-    MOV dh, 0                           ; head number
-    ; syscall                           ;
-@@retry:                                ;
-    INT 13H                             ;
-    ; check for errors                  ;
-    OR ah, ah                           ;
-    JZ @@endload                        ; NO error, return from function
                                         ;
-    JMP @@retry                         ; Floppy might fail, give motor time to spin up
-    ; validate that everything went well;
-@@endload:                              ;
-    ; call loaded kernel                ;
-    DB 0EAH                             ; FAR JUMP
-    DW 0                                ; Byte 0
-    DW 07E0H                            ; Segment 7E0H, where we previously loaded our kernel into
-    ; control has been given over, our job is done
 ;---------------------------------------;
     msg DB "MaxOS - Booting", 10, 13, 0 ;
     MSG_DISK DB "DISK IO FAILURE", 0    ;
