@@ -12,5 +12,5 @@ bootdisc.bin: bootsector.BIN kernel.BIN
 run: bootdisc.bin
 	qemu-system-x86_64 -fda $<
 
-debug: kernel.bin
+debug: bootdisc.bin
 	qemu-system-x86_64 -d int -fda $<
