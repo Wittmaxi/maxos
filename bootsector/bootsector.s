@@ -9,7 +9,7 @@ LOADER SEGMENT USE16                    ;
 ;---------------------------------------;
     BOOT_DRIVE EQU relocate             ;
     CURTOP EQU BOOT_DRIVE + 1           ;
-    FATTOP EQU CURTOP + 2               ;
+    FATSEC EQU CURTOP + 2               ;
 ;---------------------------------------;
 ; skip BPB section                      ;
 ;---------------------------------------;
@@ -40,7 +40,7 @@ BPB_largeSecs   DD ?                    ;
 ;---------------------------------------;
 ; Extended BPB                          ;
 ;---------------------------------------;
-BPB_DriveNum       DB ?                 ;
+BPB_driveNum       DB ?                 ;
 BPB_winNTFlags     DB ?                 ;
 BPB_sig            DB ?                 ;
 BPB_volId          DD ?                 ;
@@ -100,34 +100,36 @@ setup PROC NEAR                         ;
     PUSH cs                             ;
     POP ss                              ; SS = CS
     MOV sp, 0400H                       ; stack lives above the code 
+    PUSH cs                             ;
+    POP ds                              ; setup new DS
     ;- enable interrupts back           ;
     STI                                 ;
     ;- preserve Data                    ;
-    MOV al, 'a'
-    CALL debugMSG
     MOV BYTE PTR [BOOT_DRIVE], dl       ; What's the boot drive? - important when we read sectors
     MOV WORD PTR [CURTOP], cs           ; What's the highest address that won't overwrite kernel?
-    MOV cx, WORD PTR [CURTOP]
-    CALL printNum
     ;- FAT                              ;
     ;-- read the FAT                    ;
     ;--- where to?                      ;
-    MOV al, 'a'
-    CALL debugMSG
     MOV ax, WORD PTR [BPB_secPerFAT]    ;
     MUL BYTE PTR [BPB_numberFAT]        ; AX = size of FATS
     CALL calcStart                      ; ES:BX = where to put FAT
                                         ; CX = amount of sectors to read
-    CALL printNum
-    MOV WORD PTR [FATTOP], es           ; Preserve FAT-TOP
+    MOV WORD PTR [FATSEC], es           ; Preserve FAT-TOP
+    ;--- where from?                    ;
+    MOV ax, WORD PTR [BPB_resSec]       ;
     ;--- read from disc                 ;
+    MOV dx, 0123
+    PUSH dx
+    PUSH dx
+    PUSH dx
+    PUSH dx
+    PUSH dx
+    PUSH dx
     CALL readSectors                    ;
 @@a:
     HLT
     JMP @@a
     ;--- display content of FAT         
-    PUSH es                             
-    POP ds                              
     MOV si, 0                           
     CALL display                        
     CALL debugMSG
@@ -141,13 +143,7 @@ setup PROC NEAR                         ;
     INC ax                              ; !! AX = sector on disk of ROOT
     ;-- read from DISC                  ;
     MOV cx, 1                           ; read one sector
-    
-    
-    
     ;-                                  ;
-
-    
-    
     ;
 @@h:                                    ;
     HLT                                 ;
@@ -204,34 +200,36 @@ readSectors ENDP                        ;
 ; ES:BX = filled with sector from disc  ;
 ;---------------------------------------;
 readSector PROC                         ;
+    PUSH ax
+    MOV al, '#'
+    CALL debugMsg
+    POP ax
     ;- setup retry counter              ;
     MOV di, 0005h                       ;
+@@RETRY:                                ;
     ;- preserve start sector            ;
-RETRY:                                  ;
-    PUSH AX                             ;
+    PUSH ax                             ;
     ;- calculate CHS                    ; AX = LBA sector ; DX => Discarded
     ; temp = LBA / sec per track        ;
     ; Sector = (LBA % sec per track) + 1; -> CL
     ; Head = temp % number of heads     ; -> DH
     ; Cyl = temp / number of heads      ; -> CH
+    XOR dx, dx                          ; DX = 0
     DIV WORD PTR CS:[BPB_secPerTrack]   ; AX = TEMP ; DX = SECTOR - 1
     MOV cx, dx                          ;
     INC cx                              ; !! CX = CL = CHS sector
+    XOR dx, dx                          ; DX = 0
     DIV WORD PTR CS:[BPB_headCount]     ; AX = CYL ; DX = Head
     MOV dh, dl                          ; !! DH = Head
     MOV ch, al                          ; !! CH = cyl
     ;- Read the sector                  ;
-    MOV dl, BYTE PTR cs:[BOOT_DRIVE]    ; DL = drive number
+    MOV dl, BYTE PTR CS:[BOOT_DRIVE]    ; DL = drive number
     MOV ax, 0201H                       ; AL = 1 ; AH = 2
     STC                                 ; Some bioses have a bug not setting IF and CF correctly
     INT 13H                             ;
     ;- restore absolute sector          ;
     POP ax                              ;
     ;- exit if no error                 ;
-    PUSH AX
-    MOV ax, 'A'
-    CALL debugMSG
-    POP ax
     JNC readDone                        ;
     ;- reset drive                      ;
     PUSH ax                             ;
@@ -240,7 +238,7 @@ RETRY:                                  ;
     POP ax                              ;
     ;- retry loading sector             ;
     DEC di                              ;
-    JNZ retry                           ;
+    JNZ @@RETRY                         ;
     ;- tried too often - display error  ;
     MOV si, OFFSET MSG_DISK             ;
 readSector ENDP                         ;
@@ -278,31 +276,18 @@ reboot ENDP                             ;
 ; we will loop through the number of sectors if needed
 ;---------------------------------------;
 readDone PROC                           ;
-    PUSH ax
-    MOV ax, 'B'
-    CALL debugMSG
-    POP ax
-    ;- recover sector size              ;
+    ;- recover how many more sectors    ;
+    MOV cx, sp
+    CALL printNum
     POP cx                              ;
-    DEC cx                              ;
+    CALL printNum
     ;- calculate next location          ;
     INC ax                              ;
     ADD bx, cs:[BPB_bytPerSec]          ;
     ;- loop loading sectors             ;
-    PUSH ax
-    MOV ax, 'C'
-    CALL debugMSG
-    POP ax
-    CALL printNL
-
-    call printNum
-
-    PUSH ax
-    MOV ax, 'D'
-    CALL debugMSG
-    POP ax
-
-    LOOP readSectors                    ; Loop automatically checks if CX is zero
+    DEC cx
+    OR cx, cx
+    JNZ readSectors
     ;- return to caller of readSector   ;
     MOV al, "U"                          
     MOV ah, 0EH
@@ -346,6 +331,11 @@ printNum PROC
     OR ax, ax
     JNZ @@loop
 
+    ;MOV al, cl
+    ;M
+ADD cl, '0'
+    ;CALL debugMSG
+
 @@print:
     POP dx
     ADD dl, '0'
@@ -363,17 +353,19 @@ printNum ENDP
 
 printNL PROC
     PUSH ax
-    MOV ax, 0AH 
+    MOV ax, ' '
     CALL debugMSG
-    MOV ax, 0DH
-    CALL debugMSG
+    ;MOV ax, 0AH 
+    ;CALL debugMSG
+    ;MOV ax, 0DH
+    ;CALL debugMSG
     POP ax
     RET
 printNL ENDP
                                         ;
 ;---------------------------------------;
     msg DB "MaxOS - Booting", 10, 13, 0 ;
-    MSG_DISK DB "DISK IO FAILURE", 0    ;
+    MSG_DISK DB "DISK IO FAILURE UwU", 10, 13, 0;
 ;---------------------------------------;
     ORG 510                             ; Flag must be at position 510
     DW 0xAA55                           ; Bootsector flag
