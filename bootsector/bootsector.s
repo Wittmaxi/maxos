@@ -4,8 +4,13 @@
 ; VARIABLES                             ;
 ;=======================================;
     DRIVE EQU relocate                  ; BYTE
-    CURTOP EQU DRIVE + 1                ;
-    SEGFAT EQU CURTOP + 2               ;
+    CURTOP EQU DRIVE + 1                ; WORD
+    SEGFAT EQU CURTOP + 2               ; WORD
+    SEGROT EQU SEGFAT + 2               ; WORD
+                                        ;
+;- parameters                           ;
+    KERNEL_NAME EQU "KERNEL  BIN"       ;
+    KERNEL_LOAD_SEG EQU 0051H           ; 0051H = first free segment
                                         ;
 LOADER SEGMENT USE16                    ;
     ORG 0                               ;
@@ -115,7 +120,8 @@ setup:                                  ;
     MOV BYTE PTR [DRIVE], dl            ;
     MOV WORD PTR [CURTOP], cs           ;
                                         ;
-    ;- calculate FAT                    ;
+    ;- FAT                              ;
+    ;-- calculate FAT                   ;
     MOV ax, WORD PTR [BPB_secPerFat]    ;
     MUL WORD PTR [BPB_bytPerSec]        ;
     CALL allocate                       ; ES:BX -> where to write the FAT
@@ -124,25 +130,137 @@ setup:                                  ;
     ADD ax, WORD PTR [BPB_hiddenSec]    ; should probably be double? not sure what to do here, but hiddenSecs are not super common anyway
                                         ; AX = start of FAT in disk
     PUSH ax                             ; preserve, will be relevant later
+                                        ;
+    ;-- load FAT                        ;
     CALL readSectors                    ;
-
-
-
-    MOV es, WORD PTR [SEGFAT]
-    PUSH es
-    POP ds
-    MOV si, 0
-    MOV cx, 100
-    MOV ah, 0EH                         
-@@LOOP:
-    LODSB
-    INT 10H
-    LOOP @@LOOP
-
-@@JMP:
-    JMP @@JMP
+                                        ;
+    ;- Root                             ;
+    ;-- calculate ROOT start            ;
+    MOV bp, sp                          ;
+    MOV ax, WORD PTR [BPB_secPerFAT]    ;
+    MUL BYTE PTR [BPB_numberFAT]        ;
+    ADD ax, [BPB_resSec]                ;
+    DEC ax                              ;
+    ADD [bp], ax                        ; [BP] = start of root
+                                        ;
+    ;-- calculate ROOT size             ;
+    MOV ax, 0020H                       ; size of one root entry
+    MUL WORD PTR [BPB_rootEntr]         ; ax = size of root seg
+    PUSH ax                             ;
+                                        ;
+    ;-- allocate                        ;
+    CALL allocate                       ; ES = sector of ROOT
+                                        ;
+    ;-- load the ROOT                   ;
+    CWD                                 ;
+    MOV ax, [BP]                        ;
+    CALL readSectors                    ;
+                                        ;
+    ;-- calculate start of data         ;
+    POP ax                              ;
+    DIV [BPB_bytPerSec]                 ;
+    ADD [bp], ax                        ;
 relocate ENDP                           ;
-
+;---------------------------------------;
+; Find kernel                           ;
+;---------------------------------------;
+; ES = segment to ROOT                  ;
+;---------------------------------------;
+findKernel PROC                         ;
+    XOR di, di                          ; di -> root entries
+    MOV cx, [BPB_rootEntr]              ; how many entries we need to look through (max)
+@@entry:                                ;
+    PUSH di                             ;
+    PUSH cx                             ;
+    MOV cx, 0BH                         ; compare 11 bytes = 8 name + 3 ext
+    MOV si, OFFSET KERNEL               ; the filename
+                                        ;
+    ;- comparison                       ;
+    CLI                                 ; fix 8086/8088 bug
+    REPZ CMPSB                          ; compare filenames
+    STI                                 ;
+                                        ;
+    ;- prepare next loop                ;
+    POP cx                              ; restore counter
+    POP di                              ; restore entry
+    JZ loadKernel                       ;
+    ADD DI, 0020H                       ; next entry - one entry is 32byte long - one entry is 32byte long
+    LOOP @@entry                        ; Loop through ROOT
+                                        ;
+    ;- no success                       ;
+    MOV si, OFFSET NOKERN_MSG           ; Handle error: Kernel not found!
+    JMP displayError                    ;
+findKernel ENDP                         ;
+                                        ;
+;---------------------------------------;
+; load kernel                           ;
+;---------------------------------------;
+; ES:DI - root entry of kernel          ;
+;---------------------------------------;
+loadKernel PROC                         ;
+    ;- find kernel start cluster        ;
+    MOV si, ES:[di + 1AH]               ; SI = FAT cluster
+                                        ;
+    ;- setup for kernel loading         ;
+    MOV ds, WORD PTR [SEGFAT]           ; DS = FAT segment
+    MOV ax, KERNEL_LOAD_SEG             ;
+    MOV es, ax                          ;
+    XOR bx, bx                          ; ES:BX = kernel:0
+                                        ;
+loadKernel ENDP                         ;
+                                        ;
+;---------------------------------------;
+; load from FAT12                       ;
+;---------------------------------------;
+; ES - destination segment              ;
+; BX - destination offset               ;
+; DS - FAT segment                      ;
+; SI - FAT cluster                      ;
+;---------------------------------------;
+loadFromFAT PROC                        ;
+    XOR dx, dx                          ;
+    ;- convert cluster to LBA           ;
+    MOV ax, si                          ; AX = cluster ID
+    DEC ax                              ;
+    DEC ax                              ; zero based!
+    XOR cx, cx                          ;
+    MOV cl, cs:[BPB_secPerClus]         ; CL = sector count
+    MUL cx                              ; AX = start cluster
+    ADD ax, SS:[bp]                     ; AX += data start (first cluster is behind root)
+                                        ;
+    ;- load                             ;
+    CALL readSectors                    ;
+                                        ;
+    ;- find next cluster                ;
+    MOV ax, si                          ;
+    MOV dx, si                          ;
+    SHR dx, 1                           ;
+    ADD si, dx                          ; SI *= 1.5
+    MOV si, DS:[si]                     ; SI = next cluster
+    TEST al, 1                          ; are we in an even cluster?
+    JE @@odd                            ;
+@@even:                                 ; xxxx xxxx | xxxx ----
+    MOV cl, 04H                         ;
+    SHR si, cl                          ;
+@@odd:                                  ; ---- xxxx | xxxx xxxx
+    AND si, 0FFFH                       ; remove the first four bits
+                                        ;
+    ;- check for file End               ;
+    CMP si, 0FF0H                       ;
+    JLE loadFromFat                     ;
+                                        ;
+    ;- setup kernel environment         ;
+    MOV ax, KERNEL_LOAD_SEG             ;
+    PUSH ax                             ;
+    POP ds                              ; DS = (new) cs
+                                        ;
+    ;- pass control to kernel           ;
+    DB 0EAH                             ;
+    DW 0                                ;
+    DW KERNEL_LOAD_SEG                  ;
+    ;- we are done!                     ;
+loadFromFAT ENDP                        ;
+                                        ;
 ;---------------------------------------;
 ; ALLOCATE                              ;
 ;---------------------------------------;
@@ -158,7 +276,7 @@ allocate PROC                           ;
     MOV cl, 04H                         ;
     SHR ax, cl                          ;
     ;- clear DX                         ;
-    CWD                                 ; saves us one byte, since we know that AX is positive
+    CWD                                 ; saves us one byte, since we know that AX is positive, replaces xor ax, ax
     ;- calculate new start              ;
     INC ax                              ; the conversion to sector was a floored division, add one segment as buffer
     MOV bx, WORD PTR [CURTOP]           ;
@@ -201,20 +319,13 @@ readSector PROC                         ;
     ; Head = temp % number of heads     ; -> DH
     ; Cyl = temp / number of heads      ; -> CH
     CWD                                 ; DX = 0
-    DIV WORD PTR [BPB_secPerTrack]      ;
+    DIV WORD PTR CS:[BPB_secPerTrack]   ;
     MOV cx, dx                          ;
     INC cx                              ; CL = sector
     CWD                                 ; DX = 0
-    DIV WORD PTR [BPB_headCount]        ; AX = CYLINDER - DX = HEAD
+    DIV WORD PTR CS:[BPB_headCount]     ; AX = CYLINDER - DX = HEAD
     MOV dh, dl                          ; DH = head
     MOV ch, al                          ; CH = cylinder
-                                        ;
-    ;-- ??                              ;
-    PUSH cx                             ;
-    MOV cl, 06H                         ;
-    SHL al, cl                          ;
-    POP cx                              ;
-    OR cl, al                           ;
                                         ;
     ;- read actual drive                ;
     MOV dl, BYTE PTR [DRIVE]            ;
@@ -241,7 +352,6 @@ readSector PROC                         ;
                                         ;
     ;- no more retries, show error message
     MOV si, OFFSET DISK_MSG             ;
-                                        ;
 readSector ENDP                         ;
                                         ;
 ;---------------------------------------;
@@ -302,75 +412,15 @@ readDone PROC                           ;
     ;- exit if enough is read           ;
     RET                                 ;
 readDone ENDP                           ;
-
-
-; al = char
-debugMSG PROC
-    OR al, al
-    JNZ @@doStuff
-    MOV al, 'D'
-@@doStuff:
-    PUSH ax
-    PUSH bx
-    MOV ah, 0EH
-    MOV bx, 0
-    INT 10h
-    POP bx
-    POP ax
-    RET
-debugMSG ENDP
-
-; cx = number
-printNum PROC
-    PUSH ax
-    PUSH bx
-    PUSH cx
-    PUSH dx
-    MOV ax, cx
-    MOV cx, 0
-@@loop:
-    MOV bx, 010D                        ; BX = 10
-    MOV dx, 0                           ; 
-    DIV bx                              ; AX = next iterations number
-
-    PUSH dx
-
-    INC cx
-    OR ax, ax
-    JNZ @@loop
-
-@@print:
-    POP dx
-    ADD dl, '0'
-    MOV al, dl
-    CALL debugMSG
-    LOOP @@print
-
-    CALL printNL
-    POP dx
-    POP cx
-    POP bx
-    POP ax
-    RET
-printNum ENDP
-
-printNL PROC
-    PUSH ax
-    MOV ax, ' '
-    CALL debugMSG
-    ;MOV ax, 0AH 
-    ;CALL debugMSG
-    ;MOV ax, 0DH
-    ;CALL debugMSG
-    POP ax
-    RET
-printNL ENDP
+                                        ;
     ;- print string                     ;
-    DISK_MSG DB "DISK IO ERROR", 0      ;
+    DISK_MSG DB "DISK I/O ERROR", 0     ;
+    NOKERN_MSG DB "KERNEL NOT FOUND", 0 ;
+    KERNEL DB KERNEL_NAME               ; The kernel filename will be mapped like this in memory
+                                        ;
     ;- mark as bootable                 ;
     ORG 510                             ; Flag must be at position 510
     DB 055H                             ;
     DB 0AAH                             ;
-                                        ;
 LOADER ENDS                             ;
 END                                     ;
