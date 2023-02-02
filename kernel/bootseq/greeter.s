@@ -15,6 +15,15 @@ displayGreeter PROC                     ;
     CALL DPT_printNumSigned             ;
     CALL DPT_newLine                    ;
                                         ;
+    ;- Kernel size                      ;
+    MOV si, OFFSET BOOT_KERN_SIZE       ;
+    CALL DPT_printStr                   ;
+    MOV ax, PARAM_KERNEL_SIZE           ;
+    CALL DPT_printNum                   ;
+    CALL DPT_newLine                    ;
+    CALL DPT_newLine                    ;
+    CALL DPT_newLine                    ;
+                                        ;
     ;- return                           ;
     RET                                 ;
 displayGreeter ENDP                     ;
@@ -24,3 +33,4 @@ displayGreeter ENDP                     ;
             DB "    Copyright Maximilian Wittmer 2023", 13, 10
             DB "    Contact at maximilian.wittmer@gmx.de", 13, 10, 10
             DB "Kernel version: ", 0    ;
+    BOOT_KERN_SIZE DB "Kernel size in Bytes: ", 0;

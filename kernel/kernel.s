@@ -14,7 +14,8 @@ ORG 0                                   ;
 ; assumes CS = DS                       ;
 ; assumes a stack is set up             ;
 ; assumes loading at 51:00              ; probably not strictly necessary
-; assumes real mode                     ;
+; assumes real mode                     ; We will leave the real mode ourselves
+; Assumes stack in highest 2k addresses ; memory management will assume this. If not loaded correctly, will crash
 ;---------------------------------------;
 kernelMain PROC                         ;
     CALL startup                        ; initialize
@@ -33,5 +34,6 @@ include macros/macros.s                 ;
 include bootseq/startup.s               ;
 include rmode/tools.s                   ;
                                         ;
+    PARAM_KERNEL_SIZE EQU $             ;
 KERN ENDS                               ;
 END                                     ;

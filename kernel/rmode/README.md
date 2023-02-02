@@ -9,6 +9,7 @@ sets up an environment that fits the computer.
 file that includes all rmode tools
 
 ## displaytools
+`/rmode/displaytools.s`
 Tools for the INT10H syscall.
 
 `DPT_putChar` puts a single char to terminal
