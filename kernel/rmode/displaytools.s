@@ -9,6 +9,7 @@
 ; DPT_clearScr                          ; clears the screen completely
 ; DPT_printNum                          ; prints a number
 ; DPT_printNumSigned                    ; prints a number, treats input as unsigned
+; DPT_newLine                           ; goes to the new line
 ;-( bugs )------------------------------;
 ;---------------------------------------;
                                         ;
@@ -165,3 +166,20 @@ DPT_printNumSigned PROC                 ;
     MAC_POP_COMMON_REGS                 ;
     RET                                 ;
 DPT_printNumSigned ENDP                 ;
+                                        ;
+;---------------------------------------;
+; DPT_newLine                           ;
+;---------------------------------------;
+DPT_newLine PROC                        ;
+    PUSH ax                             ;
+                                        ;
+    ;- print the control chars          ;
+    MOV al, 0DH                         ;
+    CALL DPT_putChar                    ;
+    MOV al, 0AH                         ;
+    CALL DPT_putChar                    ;
+                                        ;
+    ;- done                             ;
+    POP ax                              ;
+    RET                                 ;
+DPT_newLine ENDP                        ;

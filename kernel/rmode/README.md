@@ -30,4 +30,7 @@ CX = number to print
 --
 CX = number to print
 
-requires sign bit in bit 16, requires 2s complement
+requires sign bit in bit 1/16, requires 2s complement
+
+`DPT_newLine` prints a new line
+--

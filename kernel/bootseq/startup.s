@@ -15,4 +15,4 @@ startup ENDP                            ;
 ;=======================================;
 ; INCLUDES                              ;
 ;=======================================;
-include greeter.asm                     ;
+include greeter.s                       ;
