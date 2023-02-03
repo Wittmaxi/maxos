@@ -1,8 +1,9 @@
-;-------------------------------------
+;---------------------------------------;
 ; Copyright 2023 Maximilian Wittmer     ;
 ;---------------------------------------;
 ; display greeter                       ;
 ;---------------------------------------;
+.8086                                   ;
 displayGreeter PROC                     ;
     CALL DPT_clearScr                   ;
                                         ;
@@ -28,9 +29,14 @@ displayGreeter PROC                     ;
     RET                                 ;
 displayGreeter ENDP                     ;
                                         ;
-    BOOT_MSG DB 13, 10, 10              ;
-            DB "MAXOS - Initializing booting", 13, 10
-            DB "    Copyright Maximilian Wittmer 2023", 13, 10
-            DB "    Contact at maximilian.wittmer@gmx.de", 13, 10, 10
+    BOOT_MSG DB "  __  __          __   __   ____   _____  ", 13, 10
+            DB " |  \/  |   /\    \ \ / /  / __ \ / ____| ", 13, 10
+            DB " | \  / |  /  \    \ V /  | |  | | (___   ", 13, 10
+            DB " | |\/| | / /\ \    > <   | |  | |\___ \  ", 13, 10   
+            DB " | |  | |/ ____ \  / . \  | |__| |____) | ", 13, 10
+            DB " |_|  |_/_/    \_\/_/ \_\  \____/|_____/  ", 13, 10
+            DB 10                       ;
+            DB "Copyright Maximilian Wittmer 2023", 13, 10
+            DB "Contact at maximilian.wittmer@gmx.de", 13, 10
             DB "Kernel version: ", 0    ;
     BOOT_KERN_SIZE DB "Kernel size in Bytes: ", 0;

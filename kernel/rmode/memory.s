@@ -9,6 +9,7 @@
 ;-( Synopsis )--------------------------; NAMESPACE RMEM
 ; RMEM_setup                            ; sets up system
 ;---------------------------------------;
+.8086                                   ;
                                         ;
 ;---------------------------------------;
 ; MEM_ENTRY                             ;
@@ -77,9 +78,16 @@ RMEM_setup ENDP                         ;
 ; allocates contiguous memory           ;
 ;-( input )-----------------------------;
 ; ax = size to allocate in bytes        ;
+;-( output )----------------------------;
+; ax = pointer to newly allocated memory;
 ;---------------------------------------;
 RMEM_alloc PROC                         ;
-    MAC_PUSH_COMMON_REGS                ;
+    PUSH bx                             ;
+    PUSH cx                             ;
+    PUSH dx                             ;
+                                        ;
+    ;-                                  ;
+    ADD ax, SIZEOF RMEM_ENTRY           ; we need to allocat a few more bytes for our mem marker
                                         ;
     ;- initialize mem entry pointer     ;
     ASSUME cx: PTR RMEM_ENTRY           ;
@@ -88,13 +96,35 @@ RMEM_alloc PROC                         ;
     ;- search next free entry that is big enough
 @@searchMemEntry:                       ;
     ;-- is the current entry in use?    ;
-    MOV bl, BYTE PTR [cx].RMEM_ENTRY.inUse;
-    OR bl, bl                           ;
+    MOV dl, BYTE PTR [cx].RMEM_ENTRY.inUse;
+    OR dl, dl                           ;
     JNZ @@nextMemEntry                  ; memory entry already given, look for next
-                                        ;
+    ;-- memory is free - is it big enough?
+    MOV dx, WORD PTR [cx].RMEM_ENTRY.sz ;
+    CMP dx, -1                          ; -1 for "this block has no given size!". If enough RAM is available, we can allocate here!
+    JE @@allocateHere                   ;
+    CMP dx, ax                          ;
+    JGE @@allocateHere                  ;
 @@nextMemEntry:                         ;
+    ;- load next memory marker          ;
+    MOV cx, WORD PTR [cx].RMEM_ENTRY.nextEntry
+    OR cx, cx                           ; is memory marker unset? if so, panic!
+    JNZ @@searchMemEntry                ;
+    ;CALL realmodeKernelPanic            ; TODO IMPLEMENT AND CALL!
+@@allocateHere:                         ; CX is a good entry, we can allocate here
+                                        ;
+    ;- do we need to emplace a new marker?
+    MOV dx, WORD PTR [cx].RMEM_ENTRY.nextEntry
+    OR dx, dx                           ;
+    JNZ @@returnAddress                 ;
 
-    MAC_POP_COMMON_REGS                 ;
+@@returnAddress:                        ; everything is prepared, we can return the address of the memory!
+    MOV ax, cx                          ;
+    ADD ax, SIZEOF RMEM_ENTRY           ; first free byte AFTER memory marker
+                                        ;
+    POP dx                              ;
+    POP cx                              ;
+    POP bx                              ;
 RMEM_alloc ENDP                         ;
                                         ;
     ;- variables                        ;
