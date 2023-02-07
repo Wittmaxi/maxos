@@ -10,6 +10,7 @@
 ; DPT_printNum                          ; prints a number
 ; DPT_printNumSigned                    ; prints a number, treats input as unsigned
 ; DPT_newLine                           ; goes to the new line
+; DPT_PRINTIMM                          ; print immediate string
 ;-( bugs )------------------------------;
 ;---------------------------------------;
 .8086                                   ;
@@ -134,7 +135,7 @@ DPT_printNum PROC                       ;
     MAC_POP_COMMON_REGS                 ;
     RET                                 ;
 DPT_printNum ENDP                       ;
-
+                                        ;
 ;---------------------------------------;
 ; DPT_printNumSigned                    ; assumes sign bit in bit 16
 ;-( input )-----------------------------;

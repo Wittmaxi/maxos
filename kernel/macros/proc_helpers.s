@@ -1,0 +1,32 @@
+;---------------------------------------;
+; Copyright 2023 Maximilian Wittmer     ;
+;---------------------------------------;
+; Helpers for procedures, reduce boilerplate
+;-( synopsis )--------------------------; Namespace MAC_
+; MAC_PUSH_COMMON_REGS                  ;
+; MAC_POP_COMMON_REGS                   ;
+;---------------------------------------;
+                                        ;
+;---------------------------------------;
+; MAC_PUSH_COMMON_REGS                  ;
+;---------------------------------------;
+; preserves all four common registers   ;
+;---------------------------------------;
+MAC_PUSH_COMMON_REGS MACRO              ;
+    PUSH ax                             ;
+    PUSH bx                             ;
+    PUSH cx                             ;
+    PUSH dx                             ;
+ENDM                                    ;
+                                        ;
+;---------------------------------------;
+; MAC_POP_COMMON_REGS                   ;
+;---------------------------------------;
+; pops all four common registers        ;
+;---------------------------------------;
+MAC_POP_COMMON_REGS MACRO               ;
+    POP dx                              ;
+    POP cx                              ;
+    POP bx                              ;
+    POP ax                              ;
+ENDM                                    ;
