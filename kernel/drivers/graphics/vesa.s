@@ -66,6 +66,14 @@ DRV_VESA_bioscallErrorCheck ENDP        ;
 ; AX; BX; CX; DX                        ;
 ;---------------------------------------;
 DRV_VESA_setup PROC                     ;
+    PUSH es                             ;
+    ENTER 4, 0                          ;
+    ;- initialize variables             ;
+    DRV_VESA_bestSize EQU SS:bp - 0     ;
+    DRV_VESA_bestMode EQU SS:bp - 2     ;
+    MOV WORD PTR [DRV_VESA_bestSize], 0 ;
+    MOV WORD PTR [DRV_VESA_bestMode], 0 ;
+    ;-                                  ;
     PUSH cs                             ;
     POP es                              ;
     ;- perform VESA check               ;
@@ -85,51 +93,77 @@ DRV_VESA_setup PROC                     ;
     MOV cx, 4                           ;
     MAC_IMMSTRING "VESA"                ; DS:SI = "VESA" signature needs to match!
     REPZ CMPSB                          ;
-    JZ @@noErrors                       ;
+    JZ @@sigMatch                       ;
     MAC_DPT_PRINTIMM "VESA buffer: signature does not match!"
     DRV_VESA_panic                      ;
                                         ;
+@@sigMatch:                             ;
     ;-- check vesa version              ;
-    MOV ax, CS:[DRV_VESA_infoBlock].version
+    MOV ax, ES:[DRV_VESA_infoBlock].version
     CMP ax, 00102H                      ;
-    JGE @@noErrors                      ;
-    MAC_DPT_PRINTIMM "VESA: version too low"
+    JGE @@versionOk                     ;
+    MAC_DPT_PRINTIMM "VESA: version to low"
     DRV_VESA_panic                      ;
-                                        ;
-@@noErrors:                             ;
-                                        ;
+@@versionOk:                            ;
     ;- check what modes VESA supports and choose best one
     MOV bx, OFFSET DRV_VESA_infoBlock   ;
     ASSUME bx: PTR DRV_VESA_VBE_INFO_STRUCT
                                         ;
     ;-- get vesa modes buffer address   ;
-    MOV dx, WORD PTR [bx].DRV_VESA_VBE_INFO_STRUCT.modesOff
+    MOV ax, WORD PTR [bx].DRV_VESA_VBE_INFO_STRUCT.modesOff
+    MOV si, ax
     MOV ax, WORD PTR [bx].DRV_VESA_VBE_INFO_STRUCT.modesSeg
-    MOV fs, ax                          ; display modes at fs:dx
+    PUSH ax                             ;
+    POP fs                              ; FS:SI = info struct
                                         ;
     ;-- read modes                      ;
-    MOV di, OFFSET DRV_VESA_modeInfo    ;
+    PUSH cs                             ;
+    POP es                              ;
+    MOV di, OFFSET DRV_VESA_modeInfo    ; ES:DI = mode info
+    ASSUME DI:PTR DRV_VESA_VBE_MODE_INFO_STRUCT
 @@displayModeLoop:                      ;
-    MOV cx, WORD PTR fs:[dx]            ;
+    MOV cx, WORD PTR fs:[si]            ; CX = mode code
     CMP cx, 0FFFFH                      ;
     JE @@displayModeEndLoop             ;
-    MOV ax, cx                          ;
-    CALL DPT_printNum                   ;
-    ;--- get mode information           ;
+    ;-- get mode information            ;
     MOV ax, 04F01H                      ;
     INT 10H                             ;
     CALL DRV_VESA_bioscallErrorCheck    ;
-
-    ADD dx, 2                           ;
+    ;-- compare with current best mode  ;
+    ;--- screenSize                     ;
+    XOR dx, dx                          ;
+    MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrHeight
+    MUL WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrWidth
+    CMP ax, WORD PTR [DRV_VESA_bestSize]; is this mode's scren size bigger than the previous mode?
+    JLE @@skipThisMode                  ; No? Good, check next mode!
+    ;--- linear frame buffer?           ;
+    MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.attributes
+    AND ax, 090H                        ; BIT 7: LFB accessible
+    OR ax, ax                           ;
+    JZ @@skipThisMode                   ;
+    ;--- good memory model?             ; we want true color or packed pixel
+    MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.memoryModel
+    CMP ax, 04H                         ; packed pixel mode
+    JE @@memoryModelGood                ;
+    CMP ax, 06H                         ; true color mode
+    JNE @@skipThisMode                  ;
+@@memoryModelGood:                      ;
+    MOV WORD PTR [DRV_VESA_bestMode], cx;
+@@skipThisMode:                         ;
+    ADD si, 2                           ;
     JMP @@displayModeLoop               ;
 @@displayModeEndLoop:                   ;
-                                        ;
+    MOV cx, WORD PTR [DRV_VESA_bestMode];
+    MOV WORD PTR [DRV_VESA_displayMode], cx
+    LEAVE                               ;
+    POP es                              ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
                                         ;
                                         ;
 include vesa_structures.s               ;
                                         ;
+    DRV_VESA_displayMode DW ?           ; will be found in setup
     ALIGN DWORD                         ; some bioses might require the structs to be aligned
     DRV_VESA_infoBlock DRV_VESA_VBE_INFO_STRUCT  {}
     ALIGN DWORD                         ;

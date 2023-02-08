@@ -23,7 +23,7 @@ startup PROC                            ;
     MAC_DPT_PRINTIMM "Checking for VESA compatibility . . . "
     CALL DRV_VESA_setup                 ;
     ;- done                             ;
-    MOV si, OFFSET BOOT_PRINT_DONE      ;
+    MOV di, OFFSET BOOT_PRINT_DONE      ;
     CALL DPT_printStr                   ;
                                         ;
     RET                                 ;

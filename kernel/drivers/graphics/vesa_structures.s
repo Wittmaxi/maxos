@@ -12,14 +12,14 @@
 ; DRV_VESA_VBE_INFO                     ;
 ;---------------------------------------;
 DRV_VESA_VBE_INFO_STRUCT STRUCT         ;
-    signature DB "VBE2"                 ; NEEDS to be "VESA" on return
-    version DW ?                        ;
+    signature DB "VBE2"                 ; 0 NEEDS to be "VESA" on return
+    version DW ?                        ; 4
     ;- OEM info string                  ;
-    oemOff DW ?                         ;
-    oemSeg DW ?                         ;
-    capabilities DW ?                   ;
+    oemOff DW ?                         ; 6
+    oemSeg DW ?                         ; 8
+    capabilities DD ?                   ; 10
     ;- video modes array                ;
-    modesOff DW ?                       ;
+    modesOff DW ?                       ; 12
     modesSeg DW ?                       ;
     videoMemory DW ?                    ;
     softwareRevision DW ?               ;
