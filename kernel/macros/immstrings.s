@@ -32,7 +32,7 @@ ENDM                                    ;
 ;-( output )----------------------------;
 ; SI - pointer to string                ;
 ;-( warning )---------------------------;
-; o takes up more resources than required
+; o takes up more resources than required for a stringdef
 ;   performs a nonbranching jump and    ;
 ;   invalidates pipelining in between of;
 ;   code. SHOULD ONLY BE USED if speed is not a concern

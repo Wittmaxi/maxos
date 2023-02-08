@@ -5,13 +5,13 @@
 ; DRV_VESA_bioscallErrorCheck           ;
 ; DRV_VESA_panic                        ;
 ;---------------------------------------;
-
+                                        ;
 ;---------------------------------------;
 DRV_VESA_panic MACRO                    ;
     MOV ax, -3                          ;
     CALL RM_panic                       ;
 ENDM                                    ;
-
+                                        ;
 ;---------------------------------------;
 ; DRV_VESA_bioscallErrorCheck           ;
 ;---------------------------------------;
@@ -66,33 +66,72 @@ DRV_VESA_bioscallErrorCheck ENDP        ;
 ; AX; BX; CX; DX                        ;
 ;---------------------------------------;
 DRV_VESA_setup PROC                     ;
-    ;
-    ;- perform VESA check               ;
     PUSH cs                             ;
     POP es                              ;
-    MOV di, OFFSET DRV_VESA_INFO_BLOCK  ; ES:DI buffer for at least 256 bytes (512 for VBE v2.0+)
+    ;- perform VESA check               ;
+    PUSH es                             ; some BIOSes destroy ES with this call
+    MOV di, OFFSET DRV_VESA_infoBlock   ; ES:DI buffer for at least 256 bytes (512 for VBE v2.0+)
     MOV ax, 04F00H                      ;
     INT 10H                             ;
+    POP es                              ;
                                         ;
     ;- check for errors                 ;
     CALL DRV_VESA_bioscallErrorCheck    ;
+                                        ;
     ;-- check buffer signature          ;
     PUSH CS                             ;
     POP ES                              ;
-    MOV di, OFFSET DRV_VESA_INFO_BLOCK  ; ES:DI = buffer
+    MOV di, OFFSET DRV_VESA_infoBlock   ; ES:DI = buffer
     MOV cx, 4                           ;
     MAC_IMMSTRING "VESA"                ; DS:SI = "VESA" signature needs to match!
     REPZ CMPSB                          ;
-    JZ @@bufSigMatch                    ;
+    JZ @@noErrors                       ;
     MAC_DPT_PRINTIMM "VESA buffer: signature does not match!"
     DRV_VESA_panic                      ;
-@@bufSigMatch:                          ;
+                                        ;
+    ;-- check vesa version              ;
+    MOV ax, CS:[DRV_VESA_infoBlock].version
+    CMP ax, 00102H                      ;
+    JGE @@noErrors                      ;
+    MAC_DPT_PRINTIMM "VESA: version too low"
+    DRV_VESA_panic                      ;
+                                        ;
+@@noErrors:                             ;
+                                        ;
     ;- check what modes VESA supports and choose best one
-    MOV ax, OFFSET DRV_VESA_INFO_BLOCK  ;
+    MOV bx, OFFSET DRV_VESA_infoBlock   ;
+    ASSUME bx: PTR DRV_VESA_VBE_INFO_STRUCT
+                                        ;
     ;-- get vesa modes buffer address   ;
-    
+    MOV dx, WORD PTR [bx].DRV_VESA_VBE_INFO_STRUCT.modesOff
+    MOV ax, WORD PTR [bx].DRV_VESA_VBE_INFO_STRUCT.modesSeg
+    MOV fs, ax                          ; display modes at fs:dx
+                                        ;
+    ;-- read modes                      ;
+    MOV di, OFFSET DRV_VESA_modeInfo    ;
+@@displayModeLoop:                      ;
+    MOV cx, WORD PTR fs:[dx]            ;
+    CMP cx, 0FFFFH                      ;
+    JE @@displayModeEndLoop             ;
+    MOV ax, cx                          ;
+    CALL DPT_printNum                   ;
+    ;--- get mode information           ;
+    MOV ax, 04F01H                      ;
+    INT 10H                             ;
+    CALL DRV_VESA_bioscallErrorCheck    ;
 
+    ADD dx, 2                           ;
+    JMP @@displayModeLoop               ;
+@@displayModeEndLoop:                   ;
+                                        ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
-    DRV_VESA_INFO_BLOCK DB 256 DUP (?)         ; http://www.techhelpmanual.com/84-supervga_info_block.html
-    DRV_VESA_MODE_INFO_BUF DB 256 DUP (?); http://www.techhelpmanual.com/86-supervga_mode_info_block.html
+                                        ;
+                                        ;
+include vesa_structures.s               ;
+                                        ;
+    ALIGN DWORD                         ; some bioses might require the structs to be aligned
+    DRV_VESA_infoBlock DRV_VESA_VBE_INFO_STRUCT  {}
+    ALIGN DWORD                         ;
+    DRV_VESA_modeInfo DRV_VESA_VBE_MODE_INFO_STRUCT {}
+
