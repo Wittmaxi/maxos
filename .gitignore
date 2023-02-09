@@ -1,3 +1,9 @@
 kernel.bin
 *.swp
 *.err
+
+*.BIN
+*.iso
+*.err
+*.bin
+kerneldir
