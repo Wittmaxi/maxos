@@ -63,10 +63,9 @@ DRV_VESA_bioscallErrorCheck ENDP        ;
 ; checks for VESA compatibility and sets;
 ; up the correct buffers                ;
 ;-( invalidates )-----------------------;
-; AX; BX; CX; DX                        ;
+; AX; BX; CX; DX; FS; ES                ;
 ;---------------------------------------;
 DRV_VESA_setup PROC                     ;
-    PUSH es                             ;
     ENTER 4, 0                          ;
     ;- initialize variables             ;
     DRV_VESA_bestSize EQU SS:bp - 0     ;
@@ -156,7 +155,6 @@ DRV_VESA_setup PROC                     ;
     MOV cx, WORD PTR [DRV_VESA_bestMode];
     MOV WORD PTR [DRV_VESA_displayMode], cx
     LEAVE                               ;
-    POP es                              ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
                                         ;
@@ -168,4 +166,3 @@ include vesa_structures.s               ;
     DRV_VESA_infoBlock DRV_VESA_VBE_INFO_STRUCT  {}
     ALIGN DWORD                         ;
     DRV_VESA_modeInfo DRV_VESA_VBE_MODE_INFO_STRUCT {}
-

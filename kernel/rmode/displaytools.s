@@ -36,7 +36,7 @@ DPT_putChar ENDP                        ;
 ;---------------------------------------;
 ; DPT_printStr                          ;
 ;-( input )-----------------------------;
-; DS:DI - the string to print           ; must be null-terminated
+; DS:SI - the string to print           ; must be null-terminated
 ;---------------------------------------;
 DPT_printStr PROC                       ;
     PUSH ax                             ;

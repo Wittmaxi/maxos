@@ -120,6 +120,18 @@ setup:                                  ;
     MOV BYTE PTR [DRIVE], dl            ;
     MOV WORD PTR [CURTOP], cs           ;
                                         ;
+    ;- get disk geometry                ; we can't rely on the BPB
+    MOV ah, 08                          ;
+    INT 13H                             ; only available on XT and newer. If not supported,
+                                        ; we have to assume that the BPB gives us
+                                        ; correct data on the disk geometry
+    OR ah, ah                           ;
+    JNZ @@assumeBPBCorrect              ; the syscall to get geometry is not supported
+    MOV BYTE PTR [BPB_secPerTrack], cl  ;
+    INC dh                              ; headcount - zero based, we need one based
+    MOV BYTE PTR [BPB_headCount], dh    ;
+@@assumeBPBCorrect:                     ;
+                                        ;
     ;- FAT                              ;
     ;-- calculate FAT                   ;
     MOV ax, WORD PTR [BPB_secPerFat]    ;

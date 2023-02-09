@@ -23,12 +23,14 @@ startup PROC                            ;
     MAC_DPT_PRINTIMM "Checking for VESA compatibility . . . "
     CALL DRV_VESA_setup                 ;
     ;- done                             ;
-    MOV di, OFFSET BOOT_PRINT_DONE      ;
+    MOV si, OFFSET BOOT_PRINT_DONE      ;
     CALL DPT_printStr                   ;
                                         ;
     RET                                 ;
 startup ENDP                            ;
                                         ;
+;- variables                            ;
+    BOOT_PRINT_DONE DB "Done!", 13, 10, 0 
                                         ;
 ;=======================================;
 ; INCLUDES                              ;
@@ -37,5 +39,3 @@ include greeter.s                       ;
 include cpuid.s                         ;
 include ../drivers/graphics/vesa.s      ;
                                         ;
-;- variables                            ;
-    BOOT_PRINT_DONE DB "Done!", 13, 10, 0 
