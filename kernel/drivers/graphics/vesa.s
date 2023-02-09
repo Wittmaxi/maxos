@@ -134,7 +134,7 @@ DRV_VESA_setup PROC                     ;
     MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrHeight
     MUL WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrWidth
     CMP ax, WORD PTR [DRV_VESA_bestSize]; is this mode's scren size bigger than the previous mode?
-    JLE @@skipThisMode                  ; No? Good, check next mode!
+    JLE @@skipThisMode                  ; No? check next mode!
     ;--- linear frame buffer?           ;
     MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.attributes
     AND ax, 090H                        ; BIT 7: LFB accessible
@@ -147,13 +147,20 @@ DRV_VESA_setup PROC                     ;
     CMP ax, 06H                         ; true color mode
     JNE @@skipThisMode                  ;
 @@memoryModelGood:                      ;
+    ;-- preserve best mode for future loops;
+    XOR dx, dx                          ;
+    MOV ax, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrHeight
+    MUL WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.scrWidth
+    MOV WORD PTR [DRV_VESA_bestSize], ax;
     MOV WORD PTR [DRV_VESA_bestMode], cx;
 @@skipThisMode:                         ;
     ADD si, 2                           ;
     JMP @@displayModeLoop               ;
 @@displayModeEndLoop:                   ;
+    ;- saveguard best mode              ;
     MOV cx, WORD PTR [DRV_VESA_bestMode];
     MOV WORD PTR [DRV_VESA_displayMode], cx
+    ;-                                  ;
     LEAVE                               ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
