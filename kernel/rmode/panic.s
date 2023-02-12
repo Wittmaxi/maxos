@@ -14,6 +14,7 @@
 ; -2 = CPU not supported (<i386)        ;
 ; -1 = CPU not supported (<i286)        ;
 ; 50 = GDT: limit exceeds bounds        ;
+; 90 = unit test error                            ;
 ;---------------------------------------;
 RM_panic PROC                           ;
     ;- print message and code           ;
