@@ -17,63 +17,65 @@
 ; BP + 4 = limit                                  ; DW - first byte will effectively be empty - and ignored by code!
 ; BP + 8 = flags                                  ; W (first byte unused)
 ; BP + 10 = base                                  ; DW
-; BP + 14 = unused                                ;
-; BP + 15 = access byte                           ; B
+; BP + 14 = access byte                           ; W (first byte unused)
 ;-( output )--------------------------------------;
 ; [AX] = the newly created GDT                    ;
 ;-------------------------------------------------;
 GDT_encodeEntry PROC                              ;
-    ENTER 0, 0                                    ;
     ;- params                                     ;
-    GDT_GDTptr EQU BP + 2                         ;
-    GDT_limit EQU BP + 4                          ;
-    GDT_flags EQU BP + 9                          ;
-    GDT_base EQU BP + 10                          ;
-    GDT_accessByte EQU BP + 15                    ;
+    PUSH bp                                       ;
+    MOV bp, sp                                    ;
+                                                  ;
+    GDT_GDTptr EQU SS:BP + 4                      ;
+    GDT_limit EQU SS:BP + 6                       ;
+    GDT_flags EQU SS:BP + 10                      ;
+    GDT_base EQU SS:BP + 12                       ;
+    GDT_accessByte EQU SS:BP + 16                 ;
     ;-                                            ;
     MAC_PUSH_COMMON_REGS                          ;
                                                   ;
     ;- is the limit without bounds?               ;
-    MOV bx, WORD PTR SS:[GDT_limit + 2]           ;
-    CMP bx, 0FFH                                  ;
+    MOV bx, WORD PTR [GDT_limit + 2]              ;
+    CMP bx, 0FFH                                  ;:
     JLE @@limitOk                                 ;
     MOV ax, 50                                    ; Error code: GDT problem
     CALL RM_panic                                 ;
                                                   ;
 @@limitOk:                                        ;
     ;- encode entry                               ;
-    ASSUME CX: PTR GDT_entry                      ;
-    MOV cx, WORD PTR [GDT_GDTptr]                 ;
+    ASSUME DI: PTR GDT_entry                      ;
+    MOV di, WORD PTR [GDT_GDTptr]                 ;
     ;-- encode limit                              ; BX is still GDT_limit
     ;--- low limit                                ;
-    MOV WORD PTR [cx].GDT_entry.limitLow, bx      ;
+    MOV WORD PTR [CS:di].GDT_entry.limitLow, bx   ;
     ;--- high limit                               ;
-    MOV bl, BYTE PTR SS:[GDT_limit + 1]           ;
+    MOV bx, WORD PTR [GDT_limit]                  ;
+    XOR bh, bh                                    ;
     AND bl, 00001111B                             ; don't make assumptions, we might get garbage passed
-    MOV dl, BYTE PTR [cx].GDT_entry.granularity   ;
-    AND dl, 11110000B                             ;
+    MOV dl, BYTE PTR [di].GDT_entry.granularity   ;
+    AND dl, 11110000B                             ; high limit goes into the high nibble
     OR dl, bl                                     ;
-    MOV BYTE PTR [cx].GDT_entry.granularity, dl   ;
+    MOV BYTE PTR [di].GDT_entry.granularity, dl   ;
     ;-- encode flag                               ;
-    MOV bl, BYTE PTR [GDT_flags]                  ;
+    MOV bx, WORD PTR [GDT_flags]                  ;
     SHL bl, 4                                     ;
-    MOV dl, BYTE PTR [cx].GDT_entry.granularity   ;
-    AND dl, 00001111B                             ;
+    MOV dl, BYTE PTR [di].GDT_entry.granularity   ;
+    AND dl, 00001111B                             ; flags go into low nibble
     OR dl, bl                                     ;
-    MOV BYTE PTR [cx].GDT_entry.granularity, dl   ;
+    MOV BYTE PTR [di].GDT_entry.granularity, dl   ;
     ;-- encode base                               ;
     ;--- low base                                 ;
     MOV bx, WORD PTR [GDT_base + 2]               ;
-    MOV WORD PTR [cx].GDT_entry.baseLow, bx       ;
+    MOV WORD PTR [di].GDT_entry.baseLow, bx       ;
     ;--- mid base                                 ;
     MOV bl, BYTE PTR [GDT_base + 1]               ;
-    MOV BYTE PTR [cx].GDT_entry.baseMid, bl       ;
+    MOV BYTE PTR [di].GDT_entry.baseMid, bl       ;
     ;--- high base                                ;
     MOV bl, BYTE PTR [GDT_base]                   ;
-    MOV BYTE PTR [cx].GDT_entry.baseHighest, bl   ;
+    MOV BYTE PTR [di].GDT_entry.baseHighest, bl   ;
     ;-- encode access byte                        ;
     MOV bl, BYTE PTR [GDT_accessByte]             ;
-    MOV BYTE PTR [cx].GDT_entry.accessByte, bl    ;
+    MOV BYTE PTR [di].GDT_entry.accessByte, bl    ;
                                                   ;
     ;- all done!                                  ;
     MAC_POP_COMMON_REGS                           ;

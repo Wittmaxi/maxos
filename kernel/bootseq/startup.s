@@ -10,16 +10,6 @@
 startup PROC                                      ;
     CALL displayGreeter                           ;
                                                   ;
-    ;- run real mode unit tests                   ;
-.IF PARAM_TESTS_RUN EQ TRUE                       ;
-    MOV si, OFFSET BOOT_realmodeTests             ;
-    CALL DPT_printStr                             ;
-    ;--                                           ;
-    CALL TST_rModeRun                             ;
-    ;--                                           ;
-    MOV si, OFFSET BOOT_PRINT_DONE                ;
-    CALL DPT_printStr                             ;
-.ENDIF
     ;- check CPU                                  ;
     ;-- message                                   ;
     MAC_DPT_PRINTIMM "Checking CPU and system for compatibility. . . "
@@ -30,7 +20,7 @@ startup PROC                                      ;
                                                   ;
     ;- VSA                                        ;
     ;-- message                                   ;
-    MAC_DPT_PRINTIMM "Checking for VESA  ompatibility . . . "
+    MAC_DPT_PRINTIMM "Checking for VESA compatibility . . . "
     CALL DRV_VESA_setup                           ;
     ;- done                                       ;
     MOV si, OFFSET BOOT_PRINT_DONE                ;
@@ -41,9 +31,53 @@ startup PROC                                      ;
     CALL DRV_ACPI_setup                           ; 
     MOV si, OFFSET BOOT_PRINT_DONE                ;
     CALL DPT_printStr                             ;
+
+; SP + 2 = pointer to GDT                         ; W
+; SP + 4 = limit                                  ; DW - first byte will effectively be empty - and ignored by code!
+; SP + 8 = flags                                  ; W (first byte unused)
+; SP + 10 = base                                  ; DW
+; SP + 14 = unused                                ;
+; SP + 15 = access                                ;
+
+    MOV ax, 42
+    PUSH ax
+    PUSH ax
+    PUSH ax
+    PUSH ax
+    PUSH ax
+    PUSH ax
+    PUSH ax
+    MOV ax, OFFSET GDT_space
+    MOV BYTE PTR DS:[ax + 2], 50
+    PUSH ax
+    CALL GDT_encodeEntry
+
+    MOV cx, 8
+    MOV ax, 0
+    MOV bx, OFFSET GDT_space
+
+@@l:
+    MOV al, BYTE PTR [DS:bx]
+    CALL DPT_printNum
+    MAC_DPT_PRINTIMM " "
+    INC bx
+    LOOP @@l
+
+@@stop:
+    HLT
+    JMP @@stop
                                                   ;
     RET                                           ;
 startup ENDP                                      ;
+
+    GDT_space DB 1
+    DB 2
+    DB 3
+    DB 4
+    DB 5
+    DB 6
+    DB 7
+    DB 8
                                                   ;
 ;- variables                                      ;
     BOOT_PRINT_DONE DB "Done!", 13, 10, 0         ; 
@@ -56,5 +90,4 @@ include greeter.s                                 ;
 include cpuid.s                                   ;
 include ../drivers/graphics/vesa.s                ;
 include ../drivers/acpi/parse_devices.s           ;
-include ../tests/tests.s
                                                    
