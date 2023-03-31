@@ -31,11 +31,12 @@ kernelMain ENDP                                   ;
 ; includes                                        ;
 ;-------------------------------------------------;
 include macros/macros.s                           ;
-include bootseq/startup.s                         ;
 include rmode/tools.s                             ;
 include cpu/cpu.s                                 ;
+include bootseq/startup.s                         ;
                                                   ;
     ;- this parameter should be located in macros/params.s but can't because it needs to be at the very tail of the code
     PARAM_KERNEL_SIZE EQU $                       ;
 KERN ENDS                                         ;
+                                                  ;
 END                                               ;

@@ -137,6 +137,45 @@ DPT_printNum PROC                       ;
 DPT_printNum ENDP                       ;
                                         ;
 ;---------------------------------------;
+; DPT_printNumBin                                 ;
+;-( input )-----------------------------;
+; AX = number to print                  ;
+;---------------------------------------;
+DPT_printNumBin PROC                              ;
+    MAC_PUSH_COMMON_REGS                          ;
+                                                  ;
+    PUSH ax                                       ;
+    MOV al, 'b'                                   ;
+    CALL DPT_putChar                              ;
+    POP ax                                        ;
+                                        ;
+    ;- setup division                   ;
+    MOV bx, 02H                         ; BX for division by 10 (base 10)
+    XOR cx, cx                          ; CX keeps track of the amount of digits
+                                        ;
+    ;- first divide the number into digits;
+@@divideLoop:                           ;
+    XOR dx, dx                          ;
+    DIV bx                              ;
+    PUSH dx                             ; populate the stack with the digits
+    INC cx                              ; count how many digits
+    CMP cx, 8                                     ;
+    JNZ @@divideLoop                    ;
+                                        ;
+    ;- prepare printloop                ;
+    XOR bx, bx                          ;
+                                        ;
+@@printLoop:                            ;
+    POP ax                              ;
+    MOV ah, 0EH                         ; this was overwritten by pop
+    ADD al, '0'                         ; we print in ASCII
+    INT 10H                             ;
+    LOOP @@printLoop                    ; with CX = amount of digits we divided into
+                                        ;
+    MAC_POP_COMMON_REGS                 ;
+    RET                                 ;
+DPT_printNumBin ENDP                              ;
+;---------------------------------------;
 ; DPT_printNumSigned                    ; assumes sign bit in bit 16
 ;-( input )-----------------------------;
 ; AX = number to print                  ;

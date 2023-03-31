@@ -10,7 +10,7 @@
                                         ;
 ;- parameters                           ;
     KERNEL_NAME EQU "KERNEL  BIN"       ;
-    KERNEL_LOAD_SEG EQU 0051H           ; 0051H = first free segment
+    KERNEL_LOAD_SEG EQU 0051H           ;
                                         ;
 LOADER SEGMENT USE16                    ;
     ORG 0                               ;
@@ -23,7 +23,7 @@ LOADER SEGMENT USE16                    ;
 ; skip BPB section                      ;
 ;---------------------------------------;
 skip_bpb PROC NEAR                      ;
-    CLD                                 ; Clear direction flag - all string operations will go forwards
+    CLD                                 ; Clear direction flag - all string operations will go forwards - "vanilla" FAT specs want a NOP here
     DB 0EBH                             ; JMP near
     DB offset_value                     ;
     ;- calculate how many bytes to skip ;

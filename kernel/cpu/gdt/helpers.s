@@ -1,10 +1,7 @@
 ;-------------------------------------------------;
 ; Copyright 2023 Maximilian Wittmer               ;
 ;-( synopsis )------------------------------------;
-; GDT_encode_entry                                ;
-;-( synopsis )------------------------------------;
 ; GDT_encode_entry                                ; encode a single entry
-; GDT_set                                         ; loads the GDT to the processor
 ;-------------------------------------------------;
 .386P                                             ;
                                                   ;
@@ -19,7 +16,7 @@
 ; BP + 10 = base                                  ; DW
 ; BP + 14 = access byte                           ; W (first byte unused)
 ;-( output )--------------------------------------;
-; [AX] = the newly created GDT                    ;
+; [gdtptr] = the newly created GDT                ;
 ;-------------------------------------------------;
 GDT_encodeEntry PROC                              ;
     ;- params                                     ;
@@ -35,8 +32,8 @@ GDT_encodeEntry PROC                              ;
     MAC_PUSH_COMMON_REGS                          ;
                                                   ;
     ;- is the limit without bounds?               ;
-    MOV bx, WORD PTR [GDT_limit + 2]              ;
-    CMP bx, 0FFH                                  ;:
+    MOV ebx, DWORD PTR [GDT_limit]                ;
+    CMP ebx, 0FFFFFH                              ;
     JLE @@limitOk                                 ;
     MOV ax, 50                                    ; Error code: GDT problem
     CALL RM_panic                                 ;
@@ -49,7 +46,7 @@ GDT_encodeEntry PROC                              ;
     ;--- low limit                                ;
     MOV WORD PTR [CS:di].GDT_entry.limitLow, bx   ;
     ;--- high limit                               ;
-    MOV bx, WORD PTR [GDT_limit]                  ;
+    SHR ebx, 16                                   ;
     XOR bh, bh                                    ;
     AND bl, 00001111B                             ; don't make assumptions, we might get garbage passed
     MOV dl, BYTE PTR [di].GDT_entry.granularity   ;
@@ -65,14 +62,13 @@ GDT_encodeEntry PROC                              ;
     MOV BYTE PTR [di].GDT_entry.granularity, dl   ;
     ;-- encode base                               ;
     ;--- low base                                 ;
-    MOV bx, WORD PTR [GDT_base + 2]               ;
+    MOV ebx, DWORD PTR [GDT_base]                 ;
     MOV WORD PTR [di].GDT_entry.baseLow, bx       ;
-    ;--- mid base                                 ;
-    MOV bl, BYTE PTR [GDT_base + 1]               ;
-    MOV BYTE PTR [di].GDT_entry.baseMid, bl       ;
     ;--- high base                                ;
-    MOV bl, BYTE PTR [GDT_base]                   ;
-    MOV BYTE PTR [di].GDT_entry.baseHighest, bl   ;
+    SHR ebx, 16                                   ;
+    MOV BYTE PTR [di].GDT_entry.baseHighest, bh   ;
+    ;--- mid base                                 ;
+    MOV BYTE PTR [di].GDT_entry.baseMid, bl       ;
     ;-- encode access byte                        ;
     MOV bl, BYTE PTR [GDT_accessByte]             ;
     MOV BYTE PTR [di].GDT_entry.accessByte, bl    ;
@@ -82,32 +78,6 @@ GDT_encodeEntry PROC                              ;
     LEAVE                                         ;
     RET 16                                        ; free the 16 bytes of stack params
 GDT_encodeEntry ENDP                              ;
-                                                  ;
-;-------------------------------------------------;
-; GDT_set                                         ;
-;-( inputs )--------------------------------------;
-; BP + 2 = pointer to GDTR PTR (FWORD)            ;
-;-------------------------------------------------;
-GDT_set PROC                                      ;
-    GDTR_ptr EQU BP + 2                           ;
-    ;- get GDTR                                   ;
-    MOV ax, WORD PTR [GDTR_ptr]                   ;
-    ASSUME AX: PTR GDTR                           ;
-    ;- LGDT                                       ;
-    LGDT FWORD PTR [ax]                           ;
-    ;- load the DS                                ;
-    MOV ax, PARAM_KERNEL_DATA_SEG                 ;
-    MOV ds, ax                                    ;
-    MOV es, ax                                    ;
-    MOV fs, ax                                    ;
-    MOV gs, ax                                    ;
-    MOV ss, ax                                    ;
-    DB 0EAH                                       ;
-    DW PARAM_KERNEL_CODE_SEG                      ;
-    ;- gdt is in place! recover and return to old function
-@@recover:                                        ;
-    RET                                           ;
-GDT_set ENDP                                      ;
                                                   ;
 include structure.s                               ;
                                                   ;

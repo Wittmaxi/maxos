@@ -23,7 +23,7 @@ GDT_entry ENDS                                    ;
 ;-------------------------------------------------;
 ; only for 32 bit systems                         ;
 ;-------------------------------------------------;
-GDTR STRUCT                                       ;
-    SZ DW ?                                       ; subtract by 1 for real size!!
-    GDTptr32 DD ?                                 ;
-GDTR ENDS                                         ;
+GDT_ptr STRUCT                                    ;
+    sz DW ?                                       ; subtract by 1 for real size!!
+    base DD ?                                     ;
+GDT_ptr ENDS                                      ;

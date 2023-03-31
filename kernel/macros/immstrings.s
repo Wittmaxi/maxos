@@ -11,14 +11,15 @@
 ; MAC_PRINTIMM                          ;
 ;-( input )-----------------------------;
 ; PARAM1 - String                       ;
-;---------------------------------------;
-; Uses the kernel-own DISPLAYTOOLS (DPT) library
-; to print an immediate string. requires real mode
-; to function                           ;
-;---------------------------------------;
-MAC_DPT_PRINTIMM MACRO string           ;
-    MAC_IMMSTRING string                ;
-    CALL DPT_printStr                   ;
+;---------------------------------------          ;
+; Uses the kernel-own DISPLAYTOOLS (DPT) library  ;
+; to print an immediate string. requires real mode;
+; to function                                     ;
+; ONLY use for debugging: very slow!              ;
+;---------------------------------------          ;
+MAC_DPT_PRINTIMM MACRO string                     ;
+    MAC_IMMSTRING string                          ;
+    CALL DPT_printStr                             ;
 ENDM                                    ;
 ;---------------------------------------;
 ; MAC_IMMSTRING                         ;
