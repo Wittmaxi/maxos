@@ -65,7 +65,7 @@ DRV_VESA_bioscallErrorCheck ENDP        ;
 ;-( invalidates )-----------------------;
 ; AX; BX; CX; DX; FS; ES                ;
 ;---------------------------------------;
-DRV_VESA_setup PROC                     ;
+DRV_VESA_setup PROC                     ;         ;
     ENTER 4, 0                          ;
     ;- initialize variables             ;
     DRV_VESA_bestSize EQU SS:bp - 0     ;
@@ -164,9 +164,33 @@ DRV_VESA_setup PROC                     ;
     LEAVE                               ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
+                                                  ;
+                                                  ;
+;-------------------------------------------------;
+; DRV_VESA_bootIntoGraphicsMode                   ;
+;-------------------------------------------------;
+; Assumes that DRV_VESA_setup was already called  ;
+; And thus that the best possible displaymode was already
+; calculated. Will boot into graphics mode. After this
+; method, INT10H,ax=0eh will not work anymore and ;
+; all output will need to be done through the VESA;
+; utilities provided by the kernel.               ;
+; See http://www.techhelpmanual.com/939-int_10h_4f02h___set_supervga_video_mode.html
+;-------------------------------------------------;
+DRV_VESA_bootIntoGraphicsMode PROC                ;
+    ;- boot into Graphics Mode                    ;
+    MOV ax, 04F02H                                ;
+    MOV bx, WORD PTR [DRV_VESA_displaymode]       ;
+    INT 10H                                       ; From here on, all else is removed
+    ;- Get info about a Mode                      ;
+DRV_VESA_bootIntoGraphicsMode ENDP                ;
+                                                  ;
+;-------------------------------------------------;
+; _DRV_VESA_pollGraphicsMode                      ;
+;-------------------------------------------------;
                                         ;
                                         ;
-include vesa_structures.s               ;
+include structures/vesa_structures.s               ;
                                         ;
     DRV_VESA_displayMode DW ?           ; will be found in setup
     ALIGN DWORD                         ; some bioses might require the structs to be aligned
