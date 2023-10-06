@@ -9,6 +9,8 @@
                                         ;
 ;---------------------------------------;
 ; RM_Panic                              ;
+;---------------------------------------;
+; Will switch to Text-Based mode and panic        ;
 ;-( input )-----------------------------;
 ; ax = kernel panic code                ; (signed)
 ; -2 = CPU not supported (<i386)        ;
@@ -17,6 +19,9 @@
 ; 90 = unit test error                            ;
 ;---------------------------------------;
 RM_panic PROC                           ;
+    MOV ax, 04f02H                                ;
+    MOV bx, 0                                     ;
+    INT 10H                                       ;
     ;- print message and code           ;
     MOV si, OFFSET RM_PANIC_MSG         ;
     CALL DPT_printStr                   ;

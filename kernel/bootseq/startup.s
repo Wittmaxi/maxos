@@ -23,6 +23,7 @@ startup PROC                                      ;
     ;- VESA                                       ;
     MOV si, OFFSET BOOT_vesacheck                 ;
     CALL DPT_printStr                             ;
+
                                                   ;
     ;-- setup VESA                                ;
     CALL DRV_VESA_setup                           ;

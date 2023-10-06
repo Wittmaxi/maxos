@@ -65,7 +65,7 @@ DRV_VESA_bioscallErrorCheck ENDP        ;
 ;-( invalidates )-----------------------;
 ; AX; BX; CX; DX; FS; ES                ;
 ;---------------------------------------;
-DRV_VESA_setup PROC                     ;         ;
+DRV_VESA_setup PROC                     ;          
     ENTER 4, 0                          ;
     ;- initialize variables             ;
     DRV_VESA_bestSize EQU SS:bp - 0     ;
@@ -125,9 +125,8 @@ DRV_VESA_setup PROC                     ;         ;
     CMP cx, 0FFFFH                      ;
     JE @@displayModeEndLoop             ;
     ;-- get mode information            ;
-    MOV ax, 04F01H                      ;
-    INT 10H                             ;
-    CALL DRV_VESA_bioscallErrorCheck    ;
+    PUSH cx                                       ;
+    CALL _DRV_VESA_pollGraphicsMode
     ;-- compare with current best mode  ;
     ;--- screenSize                     ;
     XOR dx, dx                          ;
@@ -165,7 +164,6 @@ DRV_VESA_setup PROC                     ;         ;
     RET                                 ;
 DRV_VESA_setup ENDP                     ;
                                                   ;
-                                                  ;
 ;-------------------------------------------------;
 ; DRV_VESA_bootIntoGraphicsMode                   ;
 ;-------------------------------------------------;
@@ -183,14 +181,60 @@ DRV_VESA_bootIntoGraphicsMode PROC                ;
     MOV bx, WORD PTR [DRV_VESA_displaymode]       ;
     INT 10H                                       ; From here on, all else is removed
     ;- Get info about a Mode                      ;
+    MOV cx, WORD PTR [DRV_VESA_displaymode]       ;
+    PUSH cx                                       ;
+    CALL _DRV_VESA_pollGraphicsMode               ; Poll the graphics mode info
+    ;- select window A                            ; TODO: allow for window switching, currently we are static
+    ASSUME DI:PTR DRV_VESA_VBE_MODE_INFO_STRUCT   ;
+    MOV di, OFFSET DRV_VESA_modeInfo              ;
+    MOV ax, 04F05H                                ;
+    MOV bx, 00000H                                ; select window A
+    MOV cx, WORD PTR [di].DRV_VESA_VBE_MODE_INFO_STRUCT.winFuncPtr
+    INT 10H                                       ;
+    ;-                                            ;
+
+    MOV cx, 400
+    
+@@a:
+    MOV ax, 100                                   ; x
+    MOV bx, 200                                   ; y
+
+    PUSH bx
+    PUSH ax
+    CALL MGL_writeToVideoBuffer
+    INC bx
+    LOOP @@a
+
+@@B:
+    JMP @@B
+                                                  ;
+    RET                                           ;
 DRV_VESA_bootIntoGraphicsMode ENDP                ;
                                                   ;
 ;-------------------------------------------------;
 ; _DRV_VESA_pollGraphicsMode                      ;
+;-( inputs )--------------------------------------;
+; BP + 2 Mode Integer                             ; W
+;-( outputs )-------------------------------------;
+; DRV_VESA_modeInfo contains the info about the VESA-Mode
 ;-------------------------------------------------;
+_DRV_VESA_pollGraphicsMode PROC                   ;
+    ENTER 0, 0                                    ;
+    _DRV_VESA_MODE_VALUE EQU SS:BP + 4            ;
+    ;- Get the Mode Info                          ;
+    MOV ax, 04F01H                                ;
+    INT 10H                                       ;
+    CALL DRV_VESA_bioscallErrorCheck              ;
+    ;-                                            ;
+    LEAVE                                         ;
+    RET                                           ;
+_DRV_VESA_pollGraphicsMode ENDP                   ;
+                                                  ;
+; DRV_VESA_modeInfo contains the info about the VESA-Mode
                                         ;
                                         ;
 include structures/vesa_structures.s               ;
+include mgl/graphicslib.s
                                         ;
     DRV_VESA_displayMode DW ?           ; will be found in setup
     ALIGN DWORD                         ; some bioses might require the structs to be aligned
